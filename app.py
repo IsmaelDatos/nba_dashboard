@@ -2,16 +2,14 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-st.set_page_config(page_title="NBA Dashboard", page_icon="🏀", layout="wide")
+st.set_page_config(page_title="NBA Dashboard", layout="wide")
 
-# ---------------------------
-# Cargar datos
-# ---------------------------
+
 @st.cache_data
 def load_data(path="data/nba_all_elo.csv"):
-    # Leer CSV
-    df = pd.read_csv(path, dtype=str)  # leer como str para limpieza inicial
-    # Renombrar columnas que nos interesan
+
+    df = pd.read_csv(path, dtype=str)  
+    
     rename_map = {
         "year_id": "season",
         "team_id": "team",
@@ -20,56 +18,52 @@ def load_data(path="data/nba_all_elo.csv"):
         "is_playoffs": "is_playoffs",
         "game_result": "game_result"
     }
-    # Solo renombrar si existen
+
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
 
-    # Convertir tipos útiles (si existen)
+   
     if "season" in df.columns:
         df["season"] = pd.to_numeric(df["season"], errors="coerce").astype("Int64")
-    # seasongame -> número dentro de la temporada (orden por equipo)
+
     if "seasongame" in df.columns:
         df["seasongame"] = pd.to_numeric(df["seasongame"], errors="coerce").astype("Int64")
 
-    # game_date -> datetime (provee varios formatos)
     if "game_date" in df.columns:
         df["game_date"] = pd.to_datetime(df["game_date"], errors="coerce", dayfirst=False)
 
-    # is_playoffs -> 0/1
+    
     if "is_playoffs" in df.columns:
         df["is_playoffs"] = pd.to_numeric(df["is_playoffs"], errors="coerce").fillna(0).astype(int)
 
-    # limpiamos filas sin team o sin resultado
+    
     df = df.dropna(subset=[c for c in ["team", "game_result", "season"] if c in df.columns])
 
-    # crear columna 'type'
     df["type"] = df["is_playoffs"].apply(lambda x: "Playoffs" if int(x) == 1 else "Temporada regular")
 
-    # normalizar valores de game_result: mantener solo 'W' o 'L'
+    # normalizamos los datos
     df["game_result"] = df["game_result"].str.strip().str.upper().where(df["game_result"].notna())
     df = df[df["game_result"].isin(["W", "L"])]
 
     return df
 
-# Carga
+
 df = load_data()
 
-# ---------------------------
-# Sidebar - filtros
-# ---------------------------
+
 st.sidebar.header("Filtros")
 
-# Años disponibles (orden ascendente)
+# Años disponibles 
 years = sorted(df["season"].dropna().unique())
 years = [int(y) for y in years]
 selected_year = st.sidebar.selectbox("Selecciona un año", years, index=len(years)-1)
 
-# Equipos disponibles (orden alfabético)
+# Equipos disponibles 
 teams = sorted(df[df["season"] == selected_year]["team"].unique())
 if not teams:
     teams = sorted(df["team"].unique())
 selected_team = st.sidebar.selectbox("Selecciona un equipo", teams)
 
-# Tipo de juego: usamos radio horizontal para simular 'pills'
+# Tipo de juego
 game_type = st.sidebar.radio(
     "Selecciona tipo de juego",
     options=["Temporada regular", "Playoffs", "Ambos"],
@@ -77,11 +71,8 @@ game_type = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.write("Dataset: `nba_all_elo.csv` — cada fila es el registro del equipo en un juego.")
 
-# ---------------------------
-# Filtrado de datos
-# ---------------------------
+# fitro de datos
 df_sel = df[df["season"] == int(selected_year)]
 
 if game_type != "Ambos":
@@ -89,28 +80,25 @@ if game_type != "Ambos":
 
 df_sel = df_sel[df_sel["team"] == selected_team].copy()
 
-# Orden correcto por número de juego en la temporada si existe; si no, por fecha
+
 if "seasongame" in df_sel.columns and df_sel["seasongame"].notna().any():
     df_sel = df_sel.sort_values(["seasongame"])
 else:
     df_sel = df_sel.sort_values(["game_date"])
 
-st.title(f"🏀 {selected_team} — Temporada {selected_year}")
+st.title(f"{selected_team} — Temporada {selected_year}")
 
 if df_sel.empty:
     st.warning("No hay datos para los filtros seleccionados.")
 else:
-    # Crear columnas booleans y acumulados
     df_sel["is_win"] = (df_sel["game_result"] == "W").astype(int)
     df_sel["is_loss"] = (df_sel["game_result"] == "L").astype(int)
 
-    # cumsum respetando orden actual del df_sel
+    
     df_sel["Acum Ganados"] = df_sel["is_win"].cumsum()
     df_sel["Acum Perdidos"] = df_sel["is_loss"].cumsum()
 
-    # ---------------------------
-    # Gráfica de líneas (ambas series)
-    # ---------------------------
+    # Gráfica 
     fig_line = px.line(
         df_sel,
         x="seasongame" if "seasongame" in df_sel.columns and df_sel["seasongame"].notna().any() else "game_date",
@@ -121,23 +109,19 @@ else:
     )
     st.plotly_chart(fig_line, use_container_width=True)
 
-    # ---------------------------
-    # Gráfica de pastel (porcentaje en la temporada filtrada)
-    # ---------------------------
+
+    # Gráfica de pastel 
     total_wins = int(df_sel["is_win"].sum())
     total_losses = int(df_sel["is_loss"].sum())
 
     fig_pie = px.pie(
         names=["Ganados", "Perdidos"],
         values=[total_wins, total_losses],
-        title="Porcentaje de juegos ganados vs perdidos (en los filtros actuales)",
+        title="Porcentaje de juegos ganados vs perdidos",
         hole=0.35
     )
     st.plotly_chart(fig_pie, use_container_width=True)
 
-    # ---------------------------
-    # Información adicional y tabla
-    # ---------------------------
     col1, col2 = st.columns(2)
     with col1:
         st.metric("Juegos totales", total_wins + total_losses)
