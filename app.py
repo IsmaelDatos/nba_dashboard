@@ -35,7 +35,7 @@ def load_data(path="data/nba_all_elo.csv"):
 
 df = load_data()
 
-# --- Barra lateral ---
+
 st.sidebar.header("Filtros")
 years = sorted(df["season"].dropna().unique())
 years = [int(y) for y in years]
@@ -53,7 +53,7 @@ game_type = st.sidebar.radio(
 )
 st.sidebar.markdown("---")
 
-# --- Filtrado de datos ---
+
 df_sel = df[df["season"] == int(selected_year)]
 if game_type != "Ambos":
     df_sel = df_sel[df_sel["type"] == game_type]
@@ -69,13 +69,13 @@ st.title(f"{selected_team} — Temporada {selected_year}")
 if df_sel.empty:
     st.warning("No hay datos para los filtros seleccionados.")
 else:
-    # --- Columnas de indicadores ---
+    
     df_sel["is_win"] = (df_sel["game_result"] == "W").astype(int)
     df_sel["is_loss"] = (df_sel["game_result"] == "L").astype(int)
     df_sel["Acum Ganados"] = df_sel["is_win"].cumsum()
     df_sel["Acum Perdidos"] = df_sel["is_loss"].cumsum()
 
-    # --- Gráfica de acumulado de juegos ---
+    
     fig_line = px.line(
         df_sel,
         x="game_date",
@@ -86,7 +86,7 @@ else:
         template="plotly_white"
     )
 
-    # --- Gráfica de pastel ---
+    
     total_wins = int(df_sel["is_win"].sum())
     total_losses = int(df_sel["is_loss"].sum())
     fig_pie = px.pie(
@@ -97,15 +97,13 @@ else:
         color_discrete_sequence=["#1f77b4", "#4a90e2"]
     )
 
-    # --- Layout más cómodo ---
-    # st.subheader("Visualización de resultados")
     col1, col2 = st.columns(2)
     with col1:
         st.plotly_chart(fig_line, use_container_width=True)
     with col2:
         st.plotly_chart(fig_pie, use_container_width=True)
 
-    # --- Métricas ---
+    
     col1, col2 = st.columns(2)
     with col1:
         st.metric("Juegos totales", total_wins + total_losses)
@@ -115,7 +113,7 @@ else:
         if total_wins + total_losses > 0:
             st.metric("Win %", f"{total_wins / (total_wins + total_losses) * 100:.2f}%")
 
-    # --- Tabla ---
+    
     st.markdown("### Últimos juegos")
     st.dataframe(
         df_sel[["season", "seasongame", "game_date", "team", "game_result", "type", "pts", "opp_id", "opp_pts"]]
